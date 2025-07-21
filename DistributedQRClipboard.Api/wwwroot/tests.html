@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Management Tests</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-result { padding: 10px; margin: 5px 0; border-radius: 3px; }
+        .test-pass { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .test-fail { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .test-info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .test-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .url-test { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; }
+        .log-output { background: #2d3748; color: #a0aec0; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+        .stats { display: flex; gap: 20px; margin: 20px 0; }
+        .stat { background: #f8f9fa; padding: 10px; border-radius: 5px; text-align: center; min-width: 100px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Session Management Tests</h1>
+    <p>Comprehensive tests for session creation, joining, and URL handling behaviors.</p>
+
+    <div class="stats">
+        <div class="stat">
+            <div><strong id="total-tests">0</strong></div>
+            <div>Total Tests</div>
+        </div>
+        <div class="stat">
+            <div><strong id="passed-tests">0</strong></div>
+            <div>Passed</div>
+        </div>
+        <div class="stat">
+            <div><strong id="failed-tests">0</strong></div>
+            <div>Failed</div>
+        </div>
+        <div class="stat">
+            <div><strong id="success-rate">0%</strong></div>
+            <div>Success Rate</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 Run All Tests</h2>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearResults()">Clear Results</button>
+        <button onclick="runContinuousTests()">Run Continuous Tests (10 iterations)</button>
+        <button onclick="stopContinuousTests()" id="stop-continuous" disabled>Stop Continuous Tests</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Results</h2>
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Individual Tests</h2>
+        
+        <h3>1. API Endpoint Tests</h3>
+        <button onclick="testCreateSession()">Test: Create New Session</button>
+        <button onclick="testGetSession()">Test: Get Session Info</button>
+        <button onclick="testJoinSession()">Test: Join Existing Session</button>
+        <button onclick="testJoinNonExistentSession()">Test: Join Non-existent Session</button>
+        
+        <h3>2. URL Pattern Tests</h3>
+        <button onclick="testUrlPatterns()">Test: URL Pattern Recognition</button>
+        <button onclick="testGuidValidation()">Test: GUID Validation</button>
+        
+        <h3>3. Session Flow Tests</h3>
+        <button onclick="testAutoCreateFlow()">Test: Auto-create Session (No URL)</button>
+        <button onclick="testJoinExistingFlow()">Test: Join Existing Session</button>
+        <button onclick="testJoinUnknownValidGuidFlow()">Test: Join Unknown Valid GUID</button>
+        <button onclick="testJoinInvalidGuidFlow()">Test: Join Invalid GUID</button>
+        
+        <h3>4. Edge Case Tests</h3>
+        <button onclick="testEmptyGuid()">Test: Empty/All-Zero GUID</button>
+        <button onclick="testMalformedUrls()">Test: Malformed URLs</button>
+        <button onclick="testSpecialCharacters()">Test: Special Characters in URL</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Test Logs</h2>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <div id="logs" class="log-output"></div>
+    </div>
+
+    <script>
+        // Test framework
+        let testResults = [];
+        let continuousTestInterval = null;
+        let currentSessionId = null;
+
+        // Utility functions
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logElement = document.getElementById('logs');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logElement.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`${prefix} ${message}`);
+        }
+
+        function addTestResult(testName, passed, details = '') {
+            const result = {
+                name: testName,
+                passed: passed,
+                details: details,
+                timestamp: new Date().toISOString()
+            };
+            testResults.push(result);
+            displayTestResult(result);
+            updateStats();
+            log(`Test: ${testName} - ${passed ? 'PASSED' : 'FAILED'}${details ? ': ' + details : ''}`, passed ? 'success' : 'error');
+        }
+
+        function displayTestResult(result) {
+            const container = document.getElementById('test-results');
+            const div = document.createElement('div');
+            div.className = `test-result ${result.passed ? 'test-pass' : 'test-fail'}`;
+            div.innerHTML = `
+                <strong>${result.passed ? '✅' : '❌'} ${result.name}</strong>
+                ${result.details ? `<br><small>${result.details}</small>` : ''}
+                <br><small>${result.timestamp}</small>
+            `;
+            container.appendChild(div);
+        }
+
+        function updateStats() {
+            const total = testResults.length;
+            const passed = testResults.filter(r => r.passed).length;
+            const failed = total - passed;
+            const successRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+            document.getElementById('total-tests').textContent = total;
+            document.getElementById('passed-tests').textContent = passed;
+            document.getElementById('failed-tests').textContent = failed;
+            document.getElementById('success-rate').textContent = successRate + '%';
+        }
+
+        function clearResults() {
+            testResults = [];
+            document.getElementById('test-results').innerHTML = '';
+            updateStats();
+            log('Test results cleared');
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').textContent = '';
+        }
+
+        // GUID validation function (same as in enhanced.html)
+        function isValidGuid(str) {
+            const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return guidRegex.test(str);
+        }
+
+        // URL parsing function (same as in enhanced.html)
+        function parseUrlPath(path) {
+            // Check for join URL pattern: /join/{sessionId}
+            const joinMatch = path.match(/^\/join\/([a-f0-9-]+)$/i);
+            if (joinMatch) {
+                const sessionId = joinMatch[1];
+                return {
+                    mode: 'join',
+                    sessionId: sessionId,
+                    isValidGuid: isValidGuid(sessionId)
+                };
+            }
+            
+            // Check for direct session ID in URL: /{sessionId}
+            const directMatch = path.match(/^\/([a-f0-9-]+)$/i);
+            if (directMatch) {
+                const sessionId = directMatch[1];
+                return {
+                    mode: 'join',
+                    sessionId: sessionId,
+                    isValidGuid: isValidGuid(sessionId)
+                };
+            }
+            
+            // Default: no session specified
+            return {
+                mode: 'auto',
+                sessionId: null,
+                isValidGuid: false
+            };
+        }
+
+        // API Test Functions
+        async function testCreateSession() {
+            try {
+                log('Testing session creation...');
+                
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceName: 'TestDevice' })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentSessionId = data.sessionInfo.sessionId;
+                    
+                    if (isValidGuid(currentSessionId)) {
+                        addTestResult('Create Session', true, `Created session: ${currentSessionId}`);
+                    } else {
+                        addTestResult('Create Session', false, 'Invalid session ID format returned');
+                    }
+                } else {
+                    addTestResult('Create Session', false, `HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                addTestResult('Create Session', false, error.message);
+            }
+        }
+
+        async function testGetSession() {
+            if (!currentSessionId) {
+                addTestResult('Get Session Info', false, 'No session ID available (run Create Session first)');
+                return;
+            }
+
+            try {
+                log(`Testing get session info for: ${currentSessionId}`);
+                
+                const response = await fetch(`/api/sessions/${currentSessionId}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.sessionId === currentSessionId) {
+                        addTestResult('Get Session Info', true, `Retrieved session info for: ${currentSessionId}`);
+                    } else {
+                        addTestResult('Get Session Info', false, 'Session ID mismatch in response');
+                    }
+                } else if (response.status === 404) {
+                    addTestResult('Get Session Info', false, 'Session not found (may have expired)');
+                } else {
+                    addTestResult('Get Session Info', false, `HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                addTestResult('Get Session Info', false, error.message);
+            }
+        }
+
+        async function testJoinSession() {
+            if (!currentSessionId) {
+                addTestResult('Join Existing Session', false, 'No session ID available (run Create Session first)');
+                return;
+            }
+
+            try {
+                log(`Testing join existing session: ${currentSessionId}`);
+                
+                const response = await fetch(`/api/sessions/${currentSessionId}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceName: 'TestDevice2' })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addTestResult('Join Existing Session', true, `Joined session: ${currentSessionId}`);
+                } else if (response.status === 404) {
+                    addTestResult('Join Existing Session', false, 'Session not found (may have expired)');
+                } else {
+                    addTestResult('Join Existing Session', false, `HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                addTestResult('Join Existing Session', false, error.message);
+            }
+        }
+
+        async function testJoinNonExistentSession() {
+            const fakeSessionId = '12345678-1234-1234-1234-123456789012';
+            
+            try {
+                log(`Testing join non-existent session: ${fakeSessionId}`);
+                
+                const response = await fetch(`/api/sessions/${fakeSessionId}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceName: 'TestDevice' })
+                });
+
+                if (response.status === 404) {
+                    addTestResult('Join Non-existent Session', true, 'Correctly returned 404 for non-existent session');
+                } else {
+                    addTestResult('Join Non-existent Session', false, `Expected 404, got ${response.status}`);
+                }
+            } catch (error) {
+                addTestResult('Join Non-existent Session', false, error.message);
+            }
+        }
+
+        // URL Pattern Tests
+        async function testUrlPatterns() {
+            const testCases = [
+                { path: '/', expected: { mode: 'auto', sessionId: null, isValidGuid: false } },
+                { path: '/join/12345678-1234-1234-1234-123456789012', expected: { mode: 'join', sessionId: '12345678-1234-1234-1234-123456789012', isValidGuid: true } },
+                { path: '/12345678-1234-1234-1234-123456789012', expected: { mode: 'join', sessionId: '12345678-1234-1234-1234-123456789012', isValidGuid: true } },
+                { path: '/join/invalid-guid', expected: { mode: 'join', sessionId: 'invalid-guid', isValidGuid: false } },
+                { path: '/some/other/path', expected: { mode: 'auto', sessionId: null, isValidGuid: false } }
+            ];
+
+            let allPassed = true;
+            for (const testCase of testCases) {
+                const result = parseUrlPath(testCase.path);
+                const passed = JSON.stringify(result) === JSON.stringify(testCase.expected);
+                if (!passed) {
+                    allPassed = false;
+                    log(`URL pattern test failed for ${testCase.path}: expected ${JSON.stringify(testCase.expected)}, got ${JSON.stringify(result)}`, 'error');
+                }
+            }
+
+            addTestResult('URL Pattern Recognition', allPassed, `Tested ${testCases.length} URL patterns`);
+        }
+
+        async function testGuidValidation() {
+            const testCases = [
+                { guid: '12345678-1234-1234-1234-123456789012', expected: true },
+                { guid: '12345678-1234-5234-a234-123456789012', expected: true },
+                { guid: 'invalid-guid', expected: false },
+                { guid: '12345678-1234-1234-1234-12345678901', expected: false }, // too short
+                { guid: '12345678-1234-1234-1234-1234567890123', expected: false }, // too long
+                { guid: '', expected: false },
+                { guid: '00000000-0000-0000-0000-000000000000', expected: true }
+            ];
+
+            let allPassed = true;
+            for (const testCase of testCases) {
+                const result = isValidGuid(testCase.guid);
+                if (result !== testCase.expected) {
+                    allPassed = false;
+                    log(`GUID validation failed for ${testCase.guid}: expected ${testCase.expected}, got ${result}`, 'error');
+                }
+            }
+
+            addTestResult('GUID Validation', allPassed, `Tested ${testCases.length} GUID patterns`);
+        }
+
+        // Session Flow Tests
+        async function testAutoCreateFlow() {
+            try {
+                log('Testing auto-create session flow (no URL parameters)');
+                
+                // Simulate the auto-create flow
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceName: 'AutoCreateTest' })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (isValidGuid(data.sessionInfo.sessionId)) {
+                        addTestResult('Auto-create Session Flow', true, `Auto-created session: ${data.sessionInfo.sessionId}`);
+                    } else {
+                        addTestResult('Auto-create Session Flow', false, 'Invalid session ID in response');
+                    }
+                } else {
+                    addTestResult('Auto-create Session Flow', false, `HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                addTestResult('Auto-create Session Flow', false, error.message);
+            }
+        }
+
+        async function testJoinExistingFlow() {
+            if (!currentSessionId) {
+                await testCreateSession();
+                if (!currentSessionId) {
+                    addTestResult('Join Existing Session Flow', false, 'Could not create test session');
+                    return;
+                }
+            }
+
+            try {
+                log(`Testing join existing session flow for: ${currentSessionId}`);
+                
+                // First check if session exists
+                const checkResponse = await fetch(`/api/sessions/${currentSessionId}`);
+                
+                if (checkResponse.ok) {
+                    // Try to join the session
+                    const joinResponse = await fetch(`/api/sessions/${currentSessionId}/join`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ deviceName: 'JoinFlowTest' })
+                    });
+
+                    if (joinResponse.ok) {
+                        addTestResult('Join Existing Session Flow', true, `Successfully joined session: ${currentSessionId}`);
+                    } else {
+                        addTestResult('Join Existing Session Flow', false, `Failed to join session: HTTP ${joinResponse.status}`);
+                    }
+                } else {
+                    addTestResult('Join Existing Session Flow', false, 'Session does not exist or has expired');
+                }
+            } catch (error) {
+                addTestResult('Join Existing Session Flow', false, error.message);
+            }
+        }
+
+        async function testJoinUnknownValidGuidFlow() {
+            const unknownValidGuid = '87654321-4321-4321-4321-210987654321';
+            
+            try {
+                log(`Testing join unknown valid GUID flow: ${unknownValidGuid}`);
+                
+                // First verify the session doesn't exist
+                const checkResponse = await fetch(`/api/sessions/${unknownValidGuid}`);
+                
+                if (checkResponse.status === 404) {
+                    // Try to create a new session with this specific ID
+                    // Note: This would require API modification to accept specific session IDs
+                    // For now, we'll test the detection logic
+                    
+                    const urlInfo = parseUrlPath(`/join/${unknownValidGuid}`);
+                    if (urlInfo.mode === 'join' && urlInfo.isValidGuid) {
+                        addTestResult('Join Unknown Valid GUID Flow', true, `Correctly identified valid GUID that needs new session creation`);
+                    } else {
+                        addTestResult('Join Unknown Valid GUID Flow', false, 'Failed to identify valid GUID pattern');
+                    }
+                } else {
+                    addTestResult('Join Unknown Valid GUID Flow', false, 'Test GUID unexpectedly exists');
+                }
+            } catch (error) {
+                addTestResult('Join Unknown Valid GUID Flow', false, error.message);
+            }
+        }
+
+        async function testJoinInvalidGuidFlow() {
+            const invalidGuid = 'not-a-valid-guid';
+            
+            try {
+                log(`Testing join invalid GUID flow: ${invalidGuid}`);
+                
+                const urlInfo = parseUrlPath(`/join/${invalidGuid}`);
+                
+                if (urlInfo.mode === 'join' && !urlInfo.isValidGuid) {
+                    addTestResult('Join Invalid GUID Flow', true, 'Correctly identified invalid GUID pattern');
+                } else {
+                    addTestResult('Join Invalid GUID Flow', false, 'Failed to identify invalid GUID pattern');
+                }
+            } catch (error) {
+                addTestResult('Join Invalid GUID Flow', false, error.message);
+            }
+        }
+
+        // Edge Case Tests
+        async function testEmptyGuid() {
+            const emptyGuid = '00000000-0000-0000-0000-000000000000';
+            
+            try {
+                log(`Testing empty/all-zero GUID: ${emptyGuid}`);
+                
+                if (isValidGuid(emptyGuid)) {
+                    addTestResult('Empty GUID Test', true, 'All-zero GUID correctly identified as valid format');
+                } else {
+                    addTestResult('Empty GUID Test', false, 'All-zero GUID incorrectly rejected');
+                }
+            } catch (error) {
+                addTestResult('Empty GUID Test', false, error.message);
+            }
+        }
+
+        async function testMalformedUrls() {
+            const testCases = [
+                '/join/',
+                '/join//',
+                '/join/12345678-1234-1234-1234-123456789012/',
+                '//join/12345678-1234-1234-1234-123456789012',
+                '/join/12345678-1234-1234-1234-123456789012/extra'
+            ];
+
+            let allPassed = true;
+            for (const testCase of testCases) {
+                try {
+                    const result = parseUrlPath(testCase);
+                    // These should either be rejected or handled gracefully
+                    log(`Malformed URL test: ${testCase} -> ${JSON.stringify(result)}`);
+                } catch (error) {
+                    allPassed = false;
+                    log(`Malformed URL test failed for ${testCase}: ${error.message}`, 'error');
+                }
+            }
+
+            addTestResult('Malformed URLs Test', allPassed, `Tested ${testCases.length} malformed URL patterns`);
+        }
+
+        async function testSpecialCharacters() {
+            const testCases = [
+                '/join/12345678-1234-1234-1234-123456789012%20',
+                '/join/12345678-1234-1234-1234-123456789012?param=value',
+                '/join/12345678-1234-1234-1234-123456789012#fragment'
+            ];
+
+            let allPassed = true;
+            for (const testCase of testCases) {
+                try {
+                    const result = parseUrlPath(testCase);
+                    // These should be handled gracefully
+                    log(`Special characters test: ${testCase} -> ${JSON.stringify(result)}`);
+                } catch (error) {
+                    allPassed = false;
+                    log(`Special characters test failed for ${testCase}: ${error.message}`, 'error');
+                }
+            }
+
+            addTestResult('Special Characters Test', allPassed, `Tested ${testCases.length} URLs with special characters`);
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            clearResults();
+            log('Starting comprehensive test suite...');
+
+            // API Tests
+            await testCreateSession();
+            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+            await testGetSession();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await testJoinSession();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await testJoinNonExistentSession();
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // URL Pattern Tests
+            await testUrlPatterns();
+            await testGuidValidation();
+
+            // Flow Tests
+            await testAutoCreateFlow();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await testJoinExistingFlow();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await testJoinUnknownValidGuidFlow();
+            await testJoinInvalidGuidFlow();
+
+            // Edge Case Tests
+            await testEmptyGuid();
+            await testMalformedUrls();
+            await testSpecialCharacters();
+
+            log('Comprehensive test suite completed!');
+        }
+
+        // Continuous testing
+        async function runContinuousTests() {
+            let iteration = 1;
+            document.getElementById('stop-continuous').disabled = false;
+            
+            continuousTestInterval = setInterval(async () => {
+                log(`Starting continuous test iteration ${iteration}...`);
+                await runAllTests();
+                log(`Completed continuous test iteration ${iteration}`);
+                iteration++;
+            }, 30000); // Run every 30 seconds
+
+            log('Started continuous testing (every 30 seconds)');
+        }
+
+        function stopContinuousTests() {
+            if (continuousTestInterval) {
+                clearInterval(continuousTestInterval);
+                continuousTestInterval = null;
+                document.getElementById('stop-continuous').disabled = true;
+                log('Stopped continuous testing');
+            }
+        }
+
+        // Initialize
+        log('Session Management Tests initialized');
+        log('Ready to run tests against the API endpoints');
+    </script>
+</body>
+</html>

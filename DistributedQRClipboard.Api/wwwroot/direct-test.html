@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Connection Test</title>
+    <style>
+        .connection-status { padding: 10px; margin: 10px; border-radius: 5px; }
+        .connection-status.connected { background-color: #4CAF50; color: white; }
+        .connection-status.connecting { background-color: #FF9800; color: white; }
+        .connection-status.disconnected { background-color: #f44336; color: white; }
+        .connection-status.offline { background-color: #9E9E9E; color: white; }
+    </style>
+</head>
+<body>
+    <!-- Connection Status Banner -->
+    <div id="connection-status" class="connection-status offline" aria-live="polite">
+        <span id="connection-text">Starting...</span>
+        <button id="retry-connection" class="retry-btn" style="display: none;">Retry</button>
+    </div>
+
+    <h1>Direct Connection Test</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="updateStatus('Connected')">Set Connected</button>
+    <button onclick="updateStatus('Connecting')">Set Connecting</button>
+    <button onclick="updateStatus('Disconnected')">Set Disconnected</button>
+    
+    <div id="logs"></div>
+    
+    <script>
+        function log(message) {
+            console.log(message);
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+        }
+        
+        function updateStatus(state) {
+            const statusDiv = document.getElementById('connection-status');
+            const textDiv = document.getElementById('connection-text');
+            const retryBtn = document.getElementById('retry-connection');
+            
+            log('Updating status to: ' + state);
+            
+            statusDiv.className = `connection-status ${state.toLowerCase()}`;
+            textDiv.textContent = state;
+            
+            if (state === 'Disconnected') {
+                retryBtn.style.display = 'inline-block';
+            } else {
+                retryBtn.style.display = 'none';
+            }
+        }
+        
+        window.updateStatus = updateStatus;
+        
+        window.testConnection = async function() {
+            try {
+                log('Testing direct fetch to API...');
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ API call successful: ' + JSON.stringify(data.sessionInfo));
+                    updateStatus('Connected');
+                } else {
+                    log('❌ API call failed: ' + response.status);
+                    updateStatus('Disconnected');
+                }
+            } catch (error) {
+                log('❌ API call error: ' + error.message);
+                updateStatus('Disconnected');
+            }
+        };
+        
+        // Test basic functionality
+        log('Page loaded, testing status updates...');
+        updateStatus('Connecting');
+        
+        setTimeout(() => {
+            log('Auto-testing connection...');
+            testConnection();
+        }, 1000);
+    </script>
+</body>
+</html>

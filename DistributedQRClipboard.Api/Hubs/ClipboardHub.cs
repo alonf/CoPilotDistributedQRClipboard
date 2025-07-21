@@ -87,7 +87,7 @@ public sealed class ClipboardHub(
             var sessionInfo = await _sessionManager.GetSessionAsync(sessionGuid);
             
             // Join session through session manager
-            var joinRequest = new JoinSessionRequest(sessionGuid, deviceName);
+            var joinRequest = new JoinSessionRequest(sessionGuid, deviceGuid, deviceName);
             var joinResult = await _sessionManager.JoinSessionAsync(joinRequest);
 
             if (!joinResult.Success)

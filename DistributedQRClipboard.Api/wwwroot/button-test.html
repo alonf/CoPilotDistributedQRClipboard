@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+</head>
+<body>
+    <h1>Button Click Test</h1>
+    <button id="create-session">New Session</button>
+    <div id="output"></div>
+    
+    <script type="module">
+        console.log('Script loaded');
+        
+        function setupClickHandler() {
+            const button = document.getElementById('create-session');
+            const output = document.getElementById('output');
+            
+            if (button) {
+                button.addEventListener('click', function(event) {
+                    console.log('Button clicked!');
+                    output.innerHTML = '<p style="color: green;">Button clicked successfully!</p>';
+                    alert('Button works!');
+                });
+                console.log('Click handler attached to button');
+                output.innerHTML = '<p style="color: blue;">Click handler attached. Try clicking the button.</p>';
+            } else {
+                console.error('Button not found');
+                output.innerHTML = '<p style="color: red;">Button not found!</p>';
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupClickHandler);
+        } else {
+            setupClickHandler();
+        }
+    </script>
+</body>
+</html>

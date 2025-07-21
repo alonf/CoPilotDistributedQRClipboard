@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug v2 - Distributed QR Clipboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status-indicator.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-indicator.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-indicator.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .debug-log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .debug-log .error { color: red; }
+        .debug-log .warning { color: orange; }
+        .debug-log .info { color: blue; }
+        .debug-log .success { color: green; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Debug v2 - Distributed QR Clipboard</h1>
+        
+        <div id="connectionStatus" class="status-indicator connecting">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting...</span>
+        </div>
+
+        <button id="createSessionBtn">Create New Session</button>
+        <button id="clearLogBtn">Clear Log</button>
+
+        <div id="qrcode-container">
+            <div id="qrcode"></div>
+        </div>
+
+        <textarea id="clipboardText" placeholder="Enter text to share..." rows="5" cols="50"></textarea>
+
+        <div class="debug-log" id="debugLog">
+            Debug log will appear here...
+        </div>
+    </div>
+
+    <!-- Include SignalR from CDN -->
+    <script src="https://unpkg.com/@microsoft/signalr/dist/browser/signalr.min.js"></script>
+    <!-- Include QR Code library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <script>
+        class DebugApp {
+            constructor() {
+                this.debugLog = document.getElementById('debugLog');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.statusText = this.connectionStatus.querySelector('.status-text');
+                this.createSessionBtn = document.getElementById('createSessionBtn');
+                this.clearLogBtn = document.getElementById('clearLogBtn');
+                this.clipboardText = document.getElementById('clipboardText');
+                this.qrcodeContainer = document.getElementById('qrcode');
+                
+                this.currentSessionId = null;
+                this.connection = null;
+                
+                this.log('App starting...', 'info');
+                this.initializeEventHandlers();
+                this.checkDependencies();
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.className = type;
+                logEntry.textContent = `[${timestamp}] ${message}`;
+                this.debugLog.appendChild(logEntry);
+                this.debugLog.scrollTop = this.debugLog.scrollHeight;
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+
+            checkDependencies() {
+                this.log('Checking dependencies...', 'info');
+                
+                if (typeof signalR !== 'undefined') {
+                    this.log('✓ SignalR library loaded', 'success');
+                } else {
+                    this.log('✗ SignalR library not found', 'error');
+                    return;
+                }
+
+                if (typeof QRCode !== 'undefined') {
+                    this.log('✓ QRCode library loaded', 'success');
+                } else {
+                    this.log('✗ QRCode library not found', 'error');
+                }
+
+                this.initializeSignalR();
+            }
+
+            initializeEventHandlers() {
+                this.createSessionBtn.addEventListener('click', () => this.createSession());
+                this.clearLogBtn.addEventListener('click', () => this.clearLog());
+                this.clipboardText.addEventListener('input', () => this.onTextChange());
+            }
+
+            clearLog() {
+                this.debugLog.innerHTML = 'Debug log cleared...\n';
+            }
+
+            async createSession() {
+                this.log('Creating new session...', 'info');
+                try {
+                    const response = await fetch('/api/sessions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const session = await response.json();
+                        this.currentSessionId = session.id;
+                        this.log(`✓ Session created: ${session.id}`, 'success');
+                        
+                        // Generate QR code
+                        this.generateQRCode(session.id);
+                        
+                        // Join the session via SignalR
+                        if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
+                            await this.joinSession(session.id);
+                        } else {
+                            this.log('SignalR not connected, will join when connected', 'warning');
+                        }
+                    } else {
+                        this.log(`✗ Failed to create session: ${response.status} ${response.statusText}`, 'error');
+                    }
+                } catch (error) {
+                    this.log(`✗ Error creating session: ${error.message}`, 'error');
+                }
+            }
+
+            generateQRCode(sessionId) {
+                this.log(`Generating QR code for session: ${sessionId}`, 'info');
+                try {
+                    const joinUrl = `${window.location.origin}?session=${sessionId}`;
+                    
+                    // Clear previous QR code
+                    this.qrcodeContainer.innerHTML = '';
+                    
+                    QRCode.toCanvas(this.qrcodeContainer, joinUrl, {
+                        width: 200,
+                        margin: 2
+                    }, (error) => {
+                        if (error) {
+                            this.log(`✗ QR code generation failed: ${error.message}`, 'error');
+                        } else {
+                            this.log('✓ QR code generated successfully', 'success');
+                        }
+                    });
+                } catch (error) {
+                    this.log(`✗ QR code error: ${error.message}`, 'error');
+                }
+            }
+
+            initializeSignalR() {
+                this.log('Initializing SignalR connection...', 'info');
+                
+                try {
+                    this.connection = new signalR.HubConnectionBuilder()
+                        .withUrl('/clipboardHub')
+                        .withAutomaticReconnect()
+                        .build();
+
+                    // Connection event handlers
+                    this.connection.onclose((error) => {
+                        this.log(`SignalR connection closed: ${error || 'No error'}`, 'warning');
+                        this.updateConnectionStatus('disconnected');
+                    });
+
+                    this.connection.onreconnecting((error) => {
+                        this.log(`SignalR reconnecting: ${error || 'No error'}`, 'warning');
+                        this.updateConnectionStatus('connecting');
+                    });
+
+                    this.connection.onreconnected((connectionId) => {
+                        this.log(`SignalR reconnected: ${connectionId}`, 'success');
+                        this.updateConnectionStatus('connected');
+                    });
+
+                    // Hub method handlers
+                    this.connection.on('ClipboardUpdated', (content) => {
+                        this.log(`Received clipboard update: ${content}`, 'info');
+                        this.clipboardText.value = content;
+                    });
+
+                    this.connection.on('ClipboardCleared', () => {
+                        this.log('Received clipboard clear', 'info');
+                        this.clipboardText.value = '';
+                    });
+
+                    // Start connection
+                    this.startConnection();
+                    
+                } catch (error) {
+                    this.log(`✗ SignalR initialization error: ${error.message}`, 'error');
+                }
+            }
+
+            async startConnection() {
+                try {
+                    this.log('Starting SignalR connection...', 'info');
+                    await this.connection.start();
+                    this.log('✓ SignalR connected successfully', 'success');
+                    this.updateConnectionStatus('connected');
+                } catch (error) {
+                    this.log(`✗ SignalR connection failed: ${error.message}`, 'error');
+                    this.updateConnectionStatus('disconnected');
+                }
+            }
+
+            async joinSession(sessionId) {
+                try {
+                    this.log(`Joining session: ${sessionId}`, 'info');
+                    await this.connection.invoke('JoinSessionAsync', sessionId);
+                    this.log(`✓ Joined session: ${sessionId}`, 'success');
+                } catch (error) {
+                    this.log(`✗ Failed to join session: ${error.message}`, 'error');
+                }
+            }
+
+            async onTextChange() {
+                if (!this.currentSessionId || !this.connection || this.connection.state !== signalR.HubConnectionState.Connected) {
+                    return;
+                }
+
+                const content = this.clipboardText.value;
+                try {
+                    this.log(`Broadcasting clipboard update: "${content}"`, 'info');
+                    await this.connection.invoke('BroadcastClipboardUpdateAsync', this.currentSessionId, content);
+                } catch (error) {
+                    this.log(`✗ Failed to broadcast update: ${error.message}`, 'error');
+                }
+            }
+
+            updateConnectionStatus(status) {
+                this.connectionStatus.className = `status-indicator ${status}`;
+                switch (status) {
+                    case 'connecting':
+                        this.statusText.textContent = 'Connecting...';
+                        break;
+                    case 'connected':
+                        this.statusText.textContent = 'Connected';
+                        break;
+                    case 'disconnected':
+                        this.statusText.textContent = 'Disconnected';
+                        break;
+                }
+            }
+        }
+
+        // Initialize the debug app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new DebugApp();
+        });
+    </script>
+</body>
+</html>

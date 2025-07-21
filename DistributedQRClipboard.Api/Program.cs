@@ -98,9 +98,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enable default files (index.html) - MUST come before UseStaticFiles()
+app.UseDefaultFiles();
+
+// Enable static files serving
+app.UseStaticFiles();
+
 app.UseCors("SignalRPolicy");
 
-// Add middleware
+// Add middleware for API endpoints only
 app.UseRateLimiting();
 app.UseRequestValidation();
 app.UseExceptionHandler();
@@ -110,8 +117,8 @@ app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = Dat
     .WithName("HealthCheck")
     .WithTags("Health");
 
-// Basic API info endpoint
-app.MapGet("/", () => Results.Ok(new { 
+// API info endpoint
+app.MapGet("/api", () => Results.Ok(new { 
     Name = "Distributed QR Clipboard API", 
     Version = "1.0.0",
     Description = "A distributed clipboard system using QR codes for seamless data sharing across devices" 
@@ -122,8 +129,12 @@ app.MapGet("/", () => Results.Ok(new {
 // Map API endpoints
 app.MapSessionEndpoints();
 app.MapClipboardEndpoints();
+app.MapQRCodeEndpoints();
 
 // Map SignalR hub
 app.MapHub<ClipboardHub>("/clipboardhub");
 
 app.Run();
+
+// Make the Program class accessible for testing
+public partial class Program { }

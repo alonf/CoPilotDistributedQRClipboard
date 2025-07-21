@@ -337,6 +337,10 @@ public class ClipboardManagerTests
 
         // Assert
         result.Should().BeTrue();
+        
+        // Wait a moment for the Task.Run to complete
+        await Task.Delay(100);
+        
         _mockNotificationService.Verify(x => x.NotifyClipboardClearedAsync(
             sessionId, deviceId, device, It.IsAny<CancellationToken>()), Times.Once);
     }

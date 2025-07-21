@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Module Test</title>
+</head>
+<body>
+    <h1>Module Import Test</h1>
+    <div id="results"></div>
+    
+    <script type="module">
+        console.log('Starting module test...');
+        
+        try {
+            console.log('1. Testing utils import...');
+            const { Toast, Loading, EventEmitter } = await import('./js/utils.js');
+            console.log('✓ Utils imported successfully:', { Toast, Loading, EventEmitter });
+            
+            console.log('2. Testing API import...');
+            const { ApiClient } = await import('./js/api.js');
+            console.log('✓ API imported successfully:', ApiClient);
+            
+            console.log('3. Testing SignalR import...');
+            const { SignalRClient } = await import('./js/signalr-client.js');
+            console.log('✓ SignalR imported successfully:', SignalRClient);
+            
+            console.log('4. Testing clipboard import...');
+            const { ClipboardManager } = await import('./js/clipboard.js');
+            console.log('✓ Clipboard imported successfully:', ClipboardManager);
+            
+            console.log('5. Testing QR scanner import...');
+            const { QRScanner } = await import('./js/qr-scanner.js');
+            console.log('✓ QR Scanner imported successfully:', QRScanner);
+            
+            document.getElementById('results').innerHTML = '<p style="color: green;">All modules imported successfully! Check console for details.</p>';
+            
+        } catch (error) {
+            console.error('Module import failed:', error);
+            document.getElementById('results').innerHTML = `<p style="color: red;">Module import failed: ${error.message}</p>`;
+        }
+    </script>
+</body>
+</html>

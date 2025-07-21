@@ -106,7 +106,7 @@ public class SessionManagerTests : IDisposable
         var createResponse = await _sessionManager.CreateSessionAsync(createRequest);
         var sessionId = createResponse.SessionInfo!.Value.SessionId;
 
-        var joinRequest = new JoinSessionRequest(sessionId, "Device 2");
+        var joinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 2");
 
         // Act
         var joinResponse = await _sessionManager.JoinSessionAsync(joinRequest);
@@ -123,7 +123,7 @@ public class SessionManagerTests : IDisposable
     {
         // Arrange
         var nonExistentSessionId = Guid.NewGuid();
-        var joinRequest = new JoinSessionRequest(nonExistentSessionId, "Device 1");
+        var joinRequest = new JoinSessionRequest(nonExistentSessionId, Guid.NewGuid(), "Device 1");
 
         // Act
         var response = await _sessionManager.JoinSessionAsync(joinRequest);
@@ -146,12 +146,12 @@ public class SessionManagerTests : IDisposable
         // Add devices until session is full
         for (int i = 2; i <= _options.MaxDevicesPerSession; i++)
         {
-            var joinRequest = new JoinSessionRequest(sessionId, $"Device {i}");
+            var joinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), $"Device {i}");
             await _sessionManager.JoinSessionAsync(joinRequest);
         }
 
         // Try to add one more device (should fail)
-        var failingJoinRequest = new JoinSessionRequest(sessionId, "Device 6");
+        var failingJoinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 6");
 
         // Act
         var response = await _sessionManager.JoinSessionAsync(failingJoinRequest);
@@ -230,7 +230,7 @@ public class SessionManagerTests : IDisposable
         var sessionId = createResponse.SessionInfo!.Value.SessionId;
 
         // Add second device
-        var joinRequest = new JoinSessionRequest(sessionId, "Device 2");
+        var joinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 2");
         var joinResponse = await _sessionManager.JoinSessionAsync(joinRequest);
 
         // Get device list to find device ID
@@ -361,8 +361,8 @@ public class SessionManagerTests : IDisposable
         var sessionId = createResponse.SessionInfo!.Value.SessionId;
 
         // Add more devices
-        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, "Device 2"));
-        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, "Device 3"));
+        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 2"));
+        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 3"));
 
         // Act
         var devices = await _sessionManager.GetSessionDevicesAsync(sessionId);
@@ -433,7 +433,7 @@ public class SessionManagerTests : IDisposable
         var createResponse = await _sessionManager.CreateSessionAsync(createRequest);
         var sessionId = createResponse.SessionInfo!.Value.SessionId;
 
-        var joinRequest = new JoinSessionRequest(sessionId, "Device 2");
+        var joinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 2");
         await _sessionManager.JoinSessionAsync(joinRequest);
 
         var devices = await _sessionManager.GetSessionDevicesAsync(sessionId);
@@ -487,12 +487,12 @@ public class SessionManagerTests : IDisposable
         session1.DeviceCount.Should().Be(1);
 
         // Add second device
-        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, "Device 2"));
+        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 2"));
         var session2 = await _sessionManager.GetSessionAsync(sessionId);
         session2.DeviceCount.Should().Be(2);
 
         // Add third device
-        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, "Device 3"));
+        await _sessionManager.JoinSessionAsync(new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 3"));
         var session3 = await _sessionManager.GetSessionAsync(sessionId);
         session3.DeviceCount.Should().Be(3);
 
@@ -578,7 +578,7 @@ public class SessionManagerTests : IDisposable
         // Act - Add devices up to the limit (5 total)
         for (int i = 2; i <= _options.MaxDevicesPerSession; i++)
         {
-            var joinRequest = new JoinSessionRequest(sessionId, $"Device {i}");
+            var joinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), $"Device {i}");
             var joinResponse = await _sessionManager.JoinSessionAsync(joinRequest);
             
             // Assert - Each device should be added successfully
@@ -591,7 +591,7 @@ public class SessionManagerTests : IDisposable
         session.DeviceCount.Should().Be(_options.MaxDevicesPerSession);
 
         // Act - Try to add one more device (should fail)
-        var failingJoinRequest = new JoinSessionRequest(sessionId, "Device 6");
+        var failingJoinRequest = new JoinSessionRequest(sessionId, Guid.NewGuid(), "Device 6");
         var failingResponse = await _sessionManager.JoinSessionAsync(failingJoinRequest);
 
         // Assert - Should be rejected with appropriate error

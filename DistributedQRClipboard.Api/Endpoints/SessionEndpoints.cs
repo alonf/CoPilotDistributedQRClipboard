@@ -37,6 +37,15 @@ public static class SessionEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status500InternalServerError);
 
+        // Get session QR code
+        sessionGroup.MapGet("/{sessionId:guid}/qr-code", GetSessionQrCodeAsync)
+            .WithName("GetSessionQrCode")
+            .WithSummary("Get QR code for session")
+            .WithDescription("Generates and returns a QR code for the specified session")
+            .Produces<string>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
+            .Produces<ProblemDetails>(StatusCodes.Status500InternalServerError);
+
         // Join an existing session
         sessionGroup.MapPost("/{sessionId:guid}/join", JoinSessionAsync)
             .WithName("JoinSession")
@@ -140,6 +149,47 @@ public static class SessionEndpoints
             return Results.Problem(
                 title: "Session Retrieval Failed",
                 detail: "An error occurred while retrieving the session information.",
+                statusCode: StatusCodes.Status500InternalServerError
+            );
+        }
+    }
+
+    /// <summary>
+    /// Gets QR code for a session.
+    /// </summary>
+    private static async Task<IResult> GetSessionQrCodeAsync(
+        [FromRoute] Guid sessionId,
+        [FromServices] ISessionManager sessionManager,
+        [FromServices] IQrCodeGenerator qrCodeGenerator,
+        [FromServices] ILogger<Program> logger)
+    {
+        try
+        {
+            logger.LogDebug("Generating QR code for session {SessionId}", sessionId);
+
+            // Verify session exists
+            var sessionInfo = await sessionManager.GetSessionAsync(sessionId);
+            
+            // Generate QR code
+            var qrCodeBase64 = await qrCodeGenerator.GenerateQrCodeAsync(sessionId);
+            
+            return Results.Ok(qrCodeBase64);
+        }
+        catch (SessionNotFoundException)
+        {
+            logger.LogWarning("Session {SessionId} not found for QR code generation", sessionId);
+            return Results.Problem(
+                title: "Session Not Found",
+                detail: $"Session with ID {sessionId} was not found or has expired.",
+                statusCode: StatusCodes.Status404NotFound
+            );
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to generate QR code for session {SessionId}", sessionId);
+            return Results.Problem(
+                title: "QR Code Generation Failed",
+                detail: "An error occurred while generating the QR code.",
                 statusCode: StatusCodes.Status500InternalServerError
             );
         }

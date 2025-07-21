@@ -19,6 +19,28 @@ public sealed class RequestValidationMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Skip validation middleware for static files
+        var path = context.Request.Path.Value?.ToLowerInvariant();
+        if (!string.IsNullOrEmpty(path) && (
+            path.EndsWith(".html") || 
+            path.EndsWith(".css") || 
+            path.EndsWith(".js") || 
+            path.EndsWith(".svg") || 
+            path.EndsWith(".png") || 
+            path.EndsWith(".jpg") || 
+            path.EndsWith(".jpeg") || 
+            path.EndsWith(".gif") || 
+            path.EndsWith(".ico") ||
+            path.StartsWith("/css/") ||
+            path.StartsWith("/js/") ||
+            path.StartsWith("/images/") ||
+            path == "/" || 
+            path == "/index.html"))
+        {
+            await _next(context);
+            return;
+        }
+
         // Add correlation ID to the response headers
         var correlationId = context.TraceIdentifier;
         context.Response.Headers.TryAdd("X-Correlation-ID", correlationId);

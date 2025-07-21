@@ -60,9 +60,11 @@ public readonly record struct CreateSessionResponse(
 /// Request model for joining an existing session.
 /// </summary>
 /// <param name="SessionId">The session ID to join</param>
+/// <param name="DeviceId">The device ID of the joining device</param>
 /// <param name="DeviceName">Optional name for the joining device</param>
 public readonly record struct JoinSessionRequest(
     Guid SessionId,
+    Guid DeviceId,
     string? DeviceName = null);
 
 /// <summary>

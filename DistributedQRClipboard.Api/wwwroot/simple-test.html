@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Test</title>
+</head>
+<body>
+    <h1>Simple JavaScript Test</h1>
+    <div id="output">Testing...</div>
+    
+    <script>
+        console.log('1. Basic script loading...');
+        document.getElementById('output').innerHTML = '✅ Basic script works';
+        
+        // Test SignalR availability
+        setTimeout(() => {
+            console.log('2. Testing SignalR availability...');
+            if (typeof signalR !== 'undefined') {
+                console.log('✅ SignalR is available');
+                document.getElementById('output').innerHTML += '<br>✅ SignalR library loaded';
+            } else {
+                console.log('❌ SignalR not available');
+                document.getElementById('output').innerHTML += '<br>❌ SignalR library not loaded';
+            }
+        }, 1000);
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    
+    <script>
+        setTimeout(() => {
+            console.log('3. Testing SignalR after script load...');
+            if (typeof signalR !== 'undefined') {
+                console.log('✅ SignalR is now available');
+                document.getElementById('output').innerHTML += '<br>✅ SignalR loaded after script tag';
+                
+                // Try to create a simple connection
+                try {
+                    console.log('4. Testing SignalR connection creation...');
+                    const connection = new signalR.HubConnectionBuilder()
+                        .withUrl('/clipboardhub')
+                        .build();
+                    console.log('✅ SignalR connection created');
+                    document.getElementById('output').innerHTML += '<br>✅ SignalR connection object created';
+                } catch (error) {
+                    console.log('❌ SignalR connection creation failed:', error);
+                    document.getElementById('output').innerHTML += '<br>❌ SignalR connection failed: ' + error.message;
+                }
+            } else {
+                console.log('❌ SignalR still not available');
+                document.getElementById('output').innerHTML += '<br>❌ SignalR still not available';
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

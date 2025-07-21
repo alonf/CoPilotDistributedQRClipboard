@@ -173,8 +173,8 @@ public sealed class SessionManager(
                         throw new InvalidSessionException(request.SessionId, SessionInvalidReason.MaxCapacityReached);
                     }
 
-                    // Create new device
-                    var deviceId = Guid.NewGuid();
+                    // Use provided device ID instead of generating a new one
+                    var deviceId = request.DeviceId;
                     var now = DateTime.UtcNow;
                     var device = new DeviceInfo(deviceId, request.DeviceName, now, now);
 

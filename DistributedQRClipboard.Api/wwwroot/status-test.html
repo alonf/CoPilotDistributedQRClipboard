@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connection Status Test</title>
+    <style>
+        .connection-status { padding: 10px; margin: 10px; border-radius: 5px; }
+        .connection-status.connected { background-color: #4CAF50; color: white; }
+        .connection-status.connecting { background-color: #FF9800; color: white; }
+        .connection-status.disconnected { background-color: #f44336; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Connection Status Test</h1>
+    <div id="connection-status" class="connection-status disconnected">
+        <span id="connection-text">Testing...</span>
+    </div>
+    
+    <button onclick="checkStatus()">Check Status</button>
+    <button onclick="testNewSession()">Test New Session</button>
+    
+    <div id="logs"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script type="module">
+        import { ApiClient } from './js/api.js';
+        import { SignalRClient } from './js/signalr-client.js';
+        
+        let signalRClient = null;
+        let apiClient = null;
+        
+        function log(message) {
+            console.log(message);
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+        }
+        
+        function updateStatus(state) {
+            const statusDiv = document.getElementById('connection-status');
+            const textDiv = document.getElementById('connection-text');
+            
+            statusDiv.className = `connection-status ${state.toLowerCase()}`;
+            textDiv.textContent = state;
+            
+            log('Status updated to: ' + state);
+        }
+        
+        window.checkStatus = function() {
+            if (signalRClient) {
+                const state = signalRClient.getConnectionState();
+                const isConnected = signalRClient.isConnected();
+                log(`ConnectionState: ${state}, IsConnected: ${isConnected}`);
+                updateStatus(isConnected ? 'Connected' : state);
+            } else {
+                log('SignalR client not initialized');
+            }
+        };
+        
+        window.testNewSession = async function() {
+            if (!apiClient) {
+                log('API client not initialized');
+                return;
+            }
+            
+            try {
+                log('Testing session creation...');
+                const response = await apiClient.createSession();
+                log('Session created: ' + JSON.stringify(response, null, 2));
+            } catch (error) {
+                log('Session creation failed: ' + error.message);
+            }
+        };
+        
+        async function init() {
+            try {
+                log('Initializing API client...');
+                apiClient = new ApiClient();
+                
+                log('Initializing SignalR client...');
+                signalRClient = new SignalRClient();
+                
+                signalRClient.on('connectionStateChanged', (state) => {
+                    log('SignalR state changed: ' + state);
+                    updateStatus(state);
+                });
+                
+                signalRClient.on('connected', () => {
+                    log('SignalR connected event fired');
+                    updateStatus('Connected');
+                });
+                
+                signalRClient.on('error', (error) => {
+                    log('SignalR error: ' + JSON.stringify(error));
+                });
+                
+                log('Starting SignalR connection...');
+                await signalRClient.start();
+                
+                log('Initialization complete');
+                checkStatus();
+                
+            } catch (error) {
+                log('Initialization failed: ' + error.message);
+            }
+        }
+        
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            setTimeout(init, 100);
+        }
+    </script>
+</body>
+</html>

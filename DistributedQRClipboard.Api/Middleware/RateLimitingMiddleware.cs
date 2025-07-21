@@ -87,6 +87,28 @@ public class RateLimitingMiddleware(RequestDelegate next, ILogger<RateLimitingMi
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
+        // Skip rate limiting for static files
+        var path = context.Request.Path.Value?.ToLowerInvariant();
+        if (!string.IsNullOrEmpty(path) && (
+            path.EndsWith(".html") || 
+            path.EndsWith(".css") || 
+            path.EndsWith(".js") || 
+            path.EndsWith(".svg") || 
+            path.EndsWith(".png") || 
+            path.EndsWith(".jpg") || 
+            path.EndsWith(".jpeg") || 
+            path.EndsWith(".gif") || 
+            path.EndsWith(".ico") ||
+            path.StartsWith("/css/") ||
+            path.StartsWith("/js/") ||
+            path.StartsWith("/images/") ||
+            path == "/" || 
+            path == "/index.html"))
+        {
+            await _next(context);
+            return;
+        }
+
         var options = new RateLimitOptions(); // In production, this would come from configuration
         
         var clientId = GetClientIdentifier(context, options);

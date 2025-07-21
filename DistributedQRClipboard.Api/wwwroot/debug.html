@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Distributed QR Clipboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-left: 4px solid #007acc; }
+        .error { border-left-color: #ff0000; background: #ffe0e0; }
+        .success { border-left-color: #00aa00; background: #e0ffe0; }
+        button { padding: 10px 20px; margin: 5px; background: #007acc; color: white; border: none; cursor: pointer; }
+        button:hover { background: #005a99; }
+    </style>
+</head>
+<body>
+    <h1>Debug - Distributed QR Clipboard</h1>
+    
+    <div class="debug">
+        <h3>Initialization Steps:</h3>
+        <div id="step1">1. Loading modules...</div>
+        <div id="step2">2. Creating app instance...</div>
+        <div id="step3">3. Initializing app...</div>
+        <div id="step4">4. Setting up event handlers...</div>
+        <div id="step5">5. Ready to use!</div>
+    </div>
+    
+    <button id="create-session">New Session (Test)</button>
+    <button onclick="window.location.reload()">Reload Page</button>
+    
+    <div class="debug">
+        <h3>Console Output:</h3>
+        <div id="console-output"></div>
+    </div>
+    
+    <script type="module">
+        const output = document.getElementById('console-output');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function addToOutput(message, type = 'log') {
+            const div = document.createElement('div');
+            div.style.margin = '2px 0';
+            div.style.color = type === 'error' ? 'red' : 'black';
+            div.textContent = `[${type.toUpperCase()}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToOutput(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToOutput(args.join(' '), 'error');
+        };
+        
+        function updateStep(stepId, message, success = true) {
+            const element = document.getElementById(stepId);
+            element.textContent = message;
+            element.style.color = success ? 'green' : 'red';
+            element.style.fontWeight = 'bold';
+        }
+        
+        async function runDebugTest() {
+            try {
+                updateStep('step1', '1. Loading modules...');
+                console.log('Starting debug test...');
+                
+                // Test module imports
+                console.log('Importing utils...');
+                const { Toast, Loading, EventEmitter } = await import('./js/utils.js');
+                console.log('Utils imported successfully');
+                
+                console.log('Importing API client...');
+                const { ApiClient } = await import('./js/api.js');
+                console.log('API client imported successfully');
+                
+                console.log('Importing SignalR client...');
+                const { SignalRClient } = await import('./js/signalr-client.js');
+                console.log('SignalR client imported successfully');
+                
+                console.log('Importing clipboard manager...');
+                const { ClipboardManager } = await import('./js/clipboard.js');
+                console.log('Clipboard manager imported successfully');
+                
+                console.log('Importing QR scanner...');
+                const { QRScanner } = await import('./js/qr-scanner.js');
+                console.log('QR scanner imported successfully');
+                
+                updateStep('step1', '1. ✓ All modules loaded successfully', true);
+                updateStep('step2', '2. Creating app instance...');
+                
+                // Test app creation
+                console.log('Creating API client instance...');
+                const apiClient = new ApiClient();
+                console.log('API client created');
+                
+                console.log('Creating SignalR client instance...');
+                const signalRClient = new SignalRClient();
+                console.log('SignalR client created');
+                
+                updateStep('step2', '2. ✓ App instances created successfully', true);
+                updateStep('step3', '3. Testing API call...');
+                
+                // Test API call
+                console.log('Testing session creation API...');
+                const response = await apiClient.createSession();
+                console.log('Session creation successful:', response);
+                
+                updateStep('step3', '3. ✓ API call successful', true);
+                updateStep('step4', '4. Setting up button test...');
+                
+                // Test button click
+                const button = document.getElementById('create-session');
+                button.addEventListener('click', async () => {
+                    console.log('Button clicked!');
+                    alert('Button works! Session creation API is functional.');
+                });
+                
+                updateStep('step4', '4. ✓ Button handler attached', true);
+                updateStep('step5', '5. ✓ All systems operational!', true);
+                
+                console.log('Debug test completed successfully!');
+                
+            } catch (error) {
+                console.error('Debug test failed:', error);
+                updateStep('step1', '1. ✗ Module loading failed: ' + error.message, false);
+            }
+        }
+        
+        // Run the test
+        runDebugTest();
+    </script>
+</body>
+</html>

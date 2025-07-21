@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed QR Clipboard - Working Version</title>
+    <meta name="description" content="Share clipboard content across devices using QR codes">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+    <!-- Connection Status Banner -->
+    <div id="connection-status" class="connection-status offline" aria-live="polite">
+        <span id="connection-text">Initializing...</span>
+        <button id="retry-connection" class="retry-btn" style="display: none;">Retry</button>
+    </div>
+
+    <div class="container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <svg class="app-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <rect x="7" y="7" width="10" height="10"/>
+                        <circle cx="12" cy="12" r="2"/>
+                    </svg>
+                    Distributed QR Clipboard
+                </h1>
+                <p class="app-description">Share clipboard content across devices instantly</p>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <!-- Session Information -->
+            <section class="session-info">
+                <h2>Session Information</h2>
+                <div class="session-controls">
+                    <button id="create-session" class="btn btn-primary">New Session</button>
+                    <button id="join-session" class="btn btn-secondary">Join Session</button>
+                </div>
+                
+                <div class="session-details">
+                    <div class="detail-item">
+                        <label>SESSION ID:</label>
+                        <span id="session-id">No active session</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>CONNECTED DEVICES:</label>
+                        <span id="connected-devices">0</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>SESSION EXPIRES:</label>
+                        <span id="session-expires">--</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Share Session -->
+            <section class="share-session">
+                <h2>Share Session</h2>
+                <div class="qr-container">
+                    <div id="qr-code" class="qr-code-display">
+                        <div class="qr-placeholder">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <rect x="7" y="7" width="10" height="10"/>
+                                <circle cx="12" cy="12" r="2"/>
+                            </svg>
+                            <p>Create or join a session to generate QR code</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="join-url-section">
+                    <label for="join-url-input">JOIN URL:</label>
+                    <div class="input-group">
+                        <input type="text" id="join-url-input" class="form-input" placeholder="Create or join a session to get join URL" readonly>
+                        <button id="copy-url-btn" class="btn btn-secondary">Copy</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Shared Clipboard -->
+            <section class="shared-clipboard">
+                <h2>Shared Clipboard</h2>
+                <div class="clipboard-controls">
+                    <button id="clipboard-read" class="btn btn-secondary">📋 Paste</button>
+                    <button id="clipboard-clear" class="btn btn-secondary">🗑 Clear</button>
+                </div>
+                
+                <div class="clipboard-content-section">
+                    <label for="clipboard-content">Enter text to share:</label>
+                    <textarea id="clipboard-content" class="clipboard-textarea" placeholder="Type or paste content here..."></textarea>
+                    <button id="clipboard-send" class="btn btn-primary">🔄 Copy to Shared Clipboard</button>
+                </div>
+                
+                <div class="clipboard-status">
+                    <span id="clipboard-status-text">0 / 10,000 characters</span>
+                </div>
+                
+                <div class="shared-content">
+                    <h3>Shared clipboard content:</h3>
+                    <div id="shared-content-display" class="shared-content-display">
+                        No content shared yet
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p id="loading-text">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- External Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    
+    <!-- Inline Application Script -->
+    <script>
+        console.log('🚀 Starting Distributed QR Clipboard...');
+        
+        // Application state
+        let currentSession = null;
+        let signalRConnection = null;
+        let connectedDevices = new Set();
+        let deviceName = generateDeviceName();
+        
+        // UI Elements
+        const elements = {
+            connectionStatus: document.getElementById('connection-status'),
+            connectionText: document.getElementById('connection-text'),
+            retryConnection: document.getElementById('retry-connection'),
+            createSessionBtn: document.getElementById('create-session'),
+            joinSessionBtn: document.getElementById('join-session'),
+            sessionId: document.getElementById('session-id'),
+            connectedDevicesCount: document.getElementById('connected-devices'),
+            qrCode: document.getElementById('qr-code'),
+            joinUrlInput: document.getElementById('join-url-input'),
+            copyUrlBtn: document.getElementById('copy-url-btn'),
+            clipboardContent: document.getElementById('clipboard-content'),
+            clipboardSend: document.getElementById('clipboard-send'),
+            clipboardRead: document.getElementById('clipboard-read'),
+            clipboardClear: document.getElementById('clipboard-clear'),
+            sharedContentDisplay: document.getElementById('shared-content-display'),
+            loadingOverlay: document.getElementById('loading-overlay'),
+            toastContainer: document.getElementById('toast-container')
+        };
+        
+        // Utility Functions
+        function generateDeviceName() {
+            const platform = navigator.platform || 'Unknown';
+            const browser = getBrowserName();
+            const random = Math.random().toString(36).substr(2, 5);
+            return `${platform}-${browser}-${random}`;
+        }
+        
+        function getBrowserName() {
+            const userAgent = navigator.userAgent;
+            if (userAgent.includes('Chrome')) return 'Chrome';
+            if (userAgent.includes('Firefox')) return 'Firefox';
+            if (userAgent.includes('Safari')) return 'Safari';
+            if (userAgent.includes('Edge')) return 'Edge';
+            return 'Browser';
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <div class="toast-message">${message}</div>
+                </div>
+            `;
+            
+            elements.toastContainer.appendChild(toast);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 5000);
+        }
+        
+        function showLoading(text = 'Loading...') {
+            document.getElementById('loading-text').textContent = text;
+            elements.loadingOverlay.style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            elements.loadingOverlay.style.display = 'none';
+        }
+        
+        function updateConnectionStatus(status) {
+            console.log('📡 Connection status:', status);
+            elements.connectionStatus.className = `connection-status ${status.toLowerCase()}`;
+            elements.connectionText.textContent = status;
+            
+            if (status === 'Disconnected') {
+                elements.retryConnection.style.display = 'inline-block';
+            } else {
+                elements.retryConnection.style.display = 'none';
+            }
+        }
+        
+        function updateSessionInfo() {
+            if (currentSession) {
+                elements.sessionId.textContent = currentSession;
+                elements.connectedDevicesCount.textContent = connectedDevices.size;
+                
+                // Generate join URL
+                const joinUrl = `${window.location.origin}/join/${currentSession}`;
+                elements.joinUrlInput.value = joinUrl;
+                
+                // Generate QR code
+                generateQRCode(joinUrl);
+            } else {
+                elements.sessionId.textContent = 'No active session';
+                elements.connectedDevicesCount.textContent = '0';
+                elements.joinUrlInput.value = '';
+                elements.qrCode.innerHTML = `
+                    <div class="qr-placeholder">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <rect x="7" y="7" width="10" height="10"/>
+                            <circle cx="12" cy="12" r="2"/>
+                        </svg>
+                        <p>Create or join a session to generate QR code</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function generateQRCode(text) {
+            // Simple QR code implementation - you could use a library here
+            elements.qrCode.innerHTML = `
+                <div class="qr-code-generated">
+                    <p>QR Code for: ${text}</p>
+                    <div style="background: #000; color: #fff; padding: 20px; text-align: center; font-family: monospace; word-break: break-all;">
+                        ${text}
+                    </div>
+                    <p><small>Use this URL to join the session</small></p>
+                </div>
+            `;
+        }
+        
+        // API Functions
+        async function createSession() {
+            try {
+                showLoading('Creating session...');
+                
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceName: deviceName })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('✅ Session created:', data);
+                
+                currentSession = data.sessionInfo.sessionId;
+                updateSessionInfo();
+                showToast('Session created successfully!', 'success');
+                
+                // Try to join the session via SignalR
+                if (signalRConnection && signalRConnection.state === signalR.HubConnectionState.Connected) {
+                    await joinSessionSignalR(currentSession);
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to create session:', error);
+                showToast('Failed to create session: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function joinSessionSignalR(sessionId) {
+            try {
+                console.log('🔗 Joining session via SignalR:', sessionId);
+                await signalRConnection.invoke('JoinSessionAsync', sessionId, deviceName);
+                console.log('✅ Joined session via SignalR');
+            } catch (error) {
+                console.error('❌ Failed to join session via SignalR:', error);
+                showToast('Failed to join session: ' + error.message, 'error');
+            }
+        }
+        
+        // SignalR Setup
+        async function initializeSignalR() {
+            try {
+                console.log('🔌 Initializing SignalR...');
+                updateConnectionStatus('Connecting');
+                
+                signalRConnection = new signalR.HubConnectionBuilder()
+                    .withUrl('/clipboardhub')
+                    .withAutomaticReconnect()
+                    .configureLogging(signalR.LogLevel.Information)
+                    .build();
+                
+                // Connection events
+                signalRConnection.onclose((error) => {
+                    console.log('🔌 SignalR connection closed:', error);
+                    updateConnectionStatus('Disconnected');
+                });
+                
+                signalRConnection.onreconnecting((error) => {
+                    console.log('🔌 SignalR reconnecting:', error);
+                    updateConnectionStatus('Connecting');
+                });
+                
+                signalRConnection.onreconnected((connectionId) => {
+                    console.log('🔌 SignalR reconnected:', connectionId);
+                    updateConnectionStatus('Connected');
+                });
+                
+                // Hub methods
+                signalRConnection.on('SessionJoined', (data) => {
+                    console.log('📝 Session joined:', data);
+                    currentSession = data.sessionId;
+                    updateSessionInfo();
+                });
+                
+                signalRConnection.on('DeviceJoined', (data) => {
+                    console.log('👤 Device joined:', data);
+                    connectedDevices.add(data.deviceName);
+                    updateSessionInfo();
+                    showToast(`${data.deviceName} joined the session`, 'info');
+                });
+                
+                signalRConnection.on('DeviceLeft', (data) => {
+                    console.log('👤 Device left:', data);
+                    connectedDevices.delete(data.deviceName);
+                    updateSessionInfo();
+                    showToast(`${data.deviceName} left the session`, 'info');
+                });
+                
+                signalRConnection.on('ClipboardUpdated', (data) => {
+                    console.log('📋 Clipboard updated:', data);
+                    elements.sharedContentDisplay.textContent = data.content;
+                    showToast(`Clipboard updated by ${data.deviceName}`, 'success');
+                });
+                
+                // Start connection
+                await signalRConnection.start();
+                console.log('✅ SignalR connected successfully');
+                updateConnectionStatus('Connected');
+                
+            } catch (error) {
+                console.error('❌ SignalR initialization failed:', error);
+                updateConnectionStatus('Disconnected');
+                showToast('Connection failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Event Handlers
+        function setupEventHandlers() {
+            console.log('🎯 Setting up event handlers...');
+            
+            elements.createSessionBtn.addEventListener('click', () => {
+                console.log('🆕 Create session button clicked');
+                createSession();
+            });
+            
+            elements.copyUrlBtn.addEventListener('click', () => {
+                if (elements.joinUrlInput.value) {
+                    navigator.clipboard.writeText(elements.joinUrlInput.value).then(() => {
+                        showToast('Join URL copied to clipboard!', 'success');
+                    }).catch(() => {
+                        showToast('Failed to copy URL', 'error');
+                    });
+                }
+            });
+            
+            elements.clipboardSend.addEventListener('click', async () => {
+                const content = elements.clipboardContent.value.trim();
+                if (!content) {
+                    showToast('Please enter some content to share', 'warning');
+                    return;
+                }
+                
+                if (!currentSession) {
+                    showToast('Please create or join a session first', 'warning');
+                    return;
+                }
+                
+                try {
+                    if (signalRConnection && signalRConnection.state === signalR.HubConnectionState.Connected) {
+                        await signalRConnection.invoke('BroadcastClipboardUpdateAsync', content);
+                        elements.sharedContentDisplay.textContent = content;
+                        showToast('Content shared successfully!', 'success');
+                    } else {
+                        showToast('Not connected to session', 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to share content:', error);
+                    showToast('Failed to share content: ' + error.message, 'error');
+                }
+            });
+            
+            elements.clipboardRead.addEventListener('click', async () => {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    elements.clipboardContent.value = text;
+                    showToast('Content pasted from clipboard!', 'success');
+                } catch (error) {
+                    showToast('Failed to read clipboard: ' + error.message, 'error');
+                }
+            });
+            
+            elements.clipboardClear.addEventListener('click', () => {
+                elements.clipboardContent.value = '';
+                showToast('Content cleared', 'info');
+            });
+            
+            elements.retryConnection.addEventListener('click', () => {
+                console.log('🔄 Retry connection clicked');
+                initializeSignalR();
+            });
+            
+            console.log('✅ Event handlers set up successfully');
+        }
+        
+        // Initialize Application
+        async function initializeApp() {
+            try {
+                console.log('🚀 Initializing Distributed QR Clipboard...');
+                showLoading('Initializing application...');
+                
+                // Check if required libraries are loaded
+                if (typeof signalR === 'undefined') {
+                    throw new Error('SignalR library not loaded');
+                }
+                
+                // Setup event handlers
+                setupEventHandlers();
+                
+                // Initialize SignalR
+                await initializeSignalR();
+                
+                // Update initial state
+                updateSessionInfo();
+                
+                hideLoading();
+                showToast('Application initialized successfully!', 'success');
+                console.log('✅ Application initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Application initialization failed:', error);
+                hideLoading();
+                updateConnectionStatus('Disconnected');
+                showToast('Failed to initialize application: ' + error.message, 'error');
+            }
+        }
+        
+        // Start the application when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(initializeApp, 100);
+            });
+        } else {
+            setTimeout(initializeApp, 100);
+        }
+        
+        console.log('📱 Distributed QR Clipboard script loaded');
+    </script>
+</body>
+</html>

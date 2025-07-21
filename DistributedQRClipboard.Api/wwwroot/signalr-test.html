@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SignalR Connection Test</title>
+</head>
+<body>
+    <h1>SignalR Connection Test</h1>
+    <div id="status">Testing SignalR connection...</div>
+    <div id="logs"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message) {
+            console.log(message);
+            logsDiv.innerHTML += '<p>' + message + '</p>';
+        }
+        
+        async function testSignalR() {
+            try {
+                log('1. Checking if signalR is available: ' + (typeof signalR !== 'undefined'));
+                
+                if (typeof signalR === 'undefined') {
+                    statusDiv.innerHTML = 'SignalR library not loaded!';
+                    return;
+                }
+                
+                log('2. Creating SignalR connection...');
+                const connection = new signalR.HubConnectionBuilder()
+                    .withUrl('/clipboardhub')
+                    .configureLogging(signalR.LogLevel.Information)
+                    .build();
+                
+                log('3. Connection created successfully');
+                
+                connection.onclose((error) => {
+                    log('Connection closed: ' + (error ? error.toString() : 'Normal closure'));
+                    statusDiv.innerHTML = 'Disconnected';
+                });
+                
+                connection.onreconnecting((error) => {
+                    log('Reconnecting: ' + (error ? error.toString() : 'Unknown reason'));
+                    statusDiv.innerHTML = 'Reconnecting...';
+                });
+                
+                connection.onreconnected((connectionId) => {
+                    log('Reconnected with ID: ' + connectionId);
+                    statusDiv.innerHTML = 'Connected';
+                });
+                
+                log('4. Starting connection...');
+                statusDiv.innerHTML = 'Connecting...';
+                
+                await connection.start();
+                
+                log('5. Connection started successfully!');
+                statusDiv.innerHTML = 'Connected';
+                
+            } catch (error) {
+                log('Error: ' + error.toString());
+                statusDiv.innerHTML = 'Connection failed: ' + error.message;
+            }
+        }
+        
+        // Wait for DOM and then test
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(testSignalR, 100);
+        });
+    </script>
+</body>
+</html>
