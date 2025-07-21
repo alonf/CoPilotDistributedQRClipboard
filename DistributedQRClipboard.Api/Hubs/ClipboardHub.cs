@@ -111,6 +111,42 @@ public sealed class ClipboardHub(
             var currentSession = await _sessionManager.GetSessionAsync(sessionGuid);
             var deviceCount = currentSession.DeviceCount;
 
+            // Send current clipboard content to the newly joined device
+            try
+            {
+                var getClipboardRequest = new GetClipboardRequest(sessionGuid, deviceGuid);
+                var clipboardResponse = await _clipboardManager.GetClipboardAsync(getClipboardRequest);
+                
+                if (clipboardResponse.Success && clipboardResponse.ClipboardContent.HasValue)
+                {
+                    var clipboardEvent = new ClipboardUpdatedEvent(
+                        Guid.NewGuid(),
+                        DateTime.UtcNow,
+                        sessionGuid,
+                        Guid.NewGuid().ToString(),
+                        clipboardResponse.ClipboardContent.Value,
+                        deviceGuid,
+                        null);
+
+                    // Send current content only to the newly joined device
+                    await Clients.Client(connectionId).SendAsync("ClipboardUpdated", clipboardEvent);
+                    
+                    _logger.LogInformation("Sent current clipboard content to newly joined device {DeviceId} in session {SessionId}", 
+                        deviceId, sessionId);
+                }
+                else
+                {
+                    _logger.LogDebug("No current clipboard content to send to newly joined device {DeviceId} in session {SessionId}", 
+                        deviceId, sessionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send current clipboard content to newly joined device {DeviceId} in session {SessionId}", 
+                    deviceId, sessionId);
+                // Don't fail the join operation if clipboard sync fails
+            }
+
             // Notify other devices in the session about new device
             var deviceJoinedEvent = DeviceJoinedEvent.Create(
                 sessionGuid,
