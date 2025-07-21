@@ -75,7 +75,7 @@ public sealed class SessionManager(
             {
                 var errorMessage = $"Invalid session creation request. Expiration minutes must be between 1 and {_options.DefaultExpirationMinutes}.";
                 logger.LogWarning("Session creation failed: {Error}", errorMessage);
-                return new CreateSessionResponse(null, null, false, errorMessage);
+                return new CreateSessionResponse(null, null, null, false, errorMessage);
             }
 
             // Check concurrent session limit
@@ -84,7 +84,7 @@ public sealed class SessionManager(
             {
                 var errorMessage = $"Maximum concurrent sessions limit ({_options.MaxConcurrentSessions}) reached.";
                 logger.LogWarning("Session creation failed: {Error}", errorMessage);
-                return new CreateSessionResponse(null, null, false, errorMessage);
+                return new CreateSessionResponse(null, null, null, false, errorMessage);
             }
 
             // Generate cryptographically secure session ID
@@ -125,12 +125,12 @@ public sealed class SessionManager(
 
             logger.LogInformation("Session created successfully: {SessionId} with device {DeviceId}", sessionId, deviceId);
 
-            return new CreateSessionResponse(sessionInfo, qrCodeUrl, true);
+            return new CreateSessionResponse(sessionInfo, qrCodeUrl, null, true);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error creating session");
-            return new CreateSessionResponse(null, null, false, "An unexpected error occurred while creating the session.");
+            return new CreateSessionResponse(null, null, null, false, "An unexpected error occurred while creating the session.");
         }
     }
 

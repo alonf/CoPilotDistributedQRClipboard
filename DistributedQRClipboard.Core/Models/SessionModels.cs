@@ -45,12 +45,14 @@ public readonly record struct CreateSessionRequest(
 /// Response model for session creation.
 /// </summary>
 /// <param name="SessionInfo">The created session information</param>
-/// <param name="QrCodeUrl">URL that can be used to generate QR code for joining</param>
+/// <param name="QrCodeUrl">URL that can be used to join the session</param>
+/// <param name="QrCodeBase64">Base64-encoded QR code image</param>
 /// <param name="Success">Indicates whether the operation was successful</param>
 /// <param name="ErrorMessage">Error message if operation failed</param>
 public readonly record struct CreateSessionResponse(
     SessionInfo? SessionInfo,
     string? QrCodeUrl,
+    string? QrCodeBase64,
     bool Success,
     string? ErrorMessage = null);
 

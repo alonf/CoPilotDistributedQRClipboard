@@ -141,3 +141,70 @@ public readonly record struct ClipboardHistoryEntry(
     /// </summary>
     public readonly bool IsCurrent => Index == 0;
 }
+
+/// <summary>
+/// Request model for clearing clipboard content.
+/// </summary>
+/// <param name="SessionId">The session ID to clear clipboard for</param>
+/// <param name="DeviceId">The device ID making the request (optional)</param>
+public readonly record struct ClearClipboardRequest(
+    [Required(ErrorMessage = "SessionId is required")]
+    Guid SessionId,
+    string? DeviceId = null)
+{
+    /// <summary>
+    /// Validates the request data.
+    /// </summary>
+    public readonly bool IsValid => SessionId != Guid.Empty;
+}
+
+/// <summary>
+/// Response model for clear clipboard operation.
+/// </summary>
+/// <param name="Success">Indicates whether the operation was successful</param>
+/// <param name="ErrorMessage">Error message if operation failed</param>
+public readonly record struct ClearClipboardResponse(
+    bool Success,
+    string? ErrorMessage = null);
+
+/// <summary>
+/// Request model for getting clipboard history.
+/// </summary>
+/// <param name="SessionId">The session ID to get history for</param>
+/// <param name="Limit">Maximum number of entries to return</param>
+public readonly record struct GetClipboardHistoryRequest(
+    [Required(ErrorMessage = "SessionId is required")]
+    Guid SessionId,
+    [Range(1, 100, ErrorMessage = "Limit must be between 1 and 100")]
+    int Limit = 10)
+{
+    /// <summary>
+    /// Validates the request data.
+    /// </summary>
+    public readonly bool IsValid => SessionId != Guid.Empty && Limit > 0 && Limit <= 100;
+}
+
+/// <summary>
+/// Response model for clipboard history operation.
+/// </summary>
+/// <param name="History">List of clipboard history entries</param>
+/// <param name="Success">Indicates whether the operation was successful</param>
+/// <param name="ErrorMessage">Error message if operation failed</param>
+public readonly record struct ClipboardHistoryResponse(
+    IReadOnlyList<ClipboardHistoryEntry> History,
+    bool Success,
+    string? ErrorMessage = null);
+
+/// <summary>
+/// Request model for getting clipboard statistics.
+/// </summary>
+/// <param name="SessionId">The session ID to get statistics for</param>
+public readonly record struct GetClipboardStatsRequest(
+    [Required(ErrorMessage = "SessionId is required")]
+    Guid SessionId)
+{
+    /// <summary>
+    /// Validates the request data.
+    /// </summary>
+    public readonly bool IsValid => SessionId != Guid.Empty;
+}
