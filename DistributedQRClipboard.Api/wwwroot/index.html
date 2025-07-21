@@ -443,6 +443,42 @@
                         }
                     });
 
+                    // Listen for device joined events to update connected device count
+                    this.connection.on('DeviceJoined', (event) => {
+                        console.log('Received DeviceJoined event:', event);
+                        // Try different property names as SignalR JSON serialization might use different casing
+                        const deviceCount = event.totalDeviceCount || event.TotalDeviceCount || event.total_device_count;
+                        if (typeof deviceCount === 'number') {
+                            this.updateConnectedDeviceCount(deviceCount);
+                        } else {
+                            console.warn('DeviceJoined event missing totalDeviceCount property:', event);
+                        }
+                    });
+
+                    // Listen for device left events to update connected device count
+                    this.connection.on('DeviceLeft', (event) => {
+                        console.log('Received DeviceLeft event:', event);
+                        // Try different property names as SignalR JSON serialization might use different casing
+                        const deviceCount = event.totalDeviceCount || event.TotalDeviceCount || event.total_device_count;
+                        if (typeof deviceCount === 'number') {
+                            this.updateConnectedDeviceCount(deviceCount);
+                        } else {
+                            console.warn('DeviceLeft event missing totalDeviceCount property:', event);
+                        }
+                    });
+
+                    // Listen for device count updates (backend authoritative count)
+                    this.connection.on('DeviceCountUpdated', (data) => {
+                        console.log('Received DeviceCountUpdated event:', data);
+                        // This is the authoritative device count from the backend
+                        const deviceCount = data.DeviceCount || data.deviceCount;
+                        if (typeof deviceCount === 'number') {
+                            this.updateConnectedDeviceCount(deviceCount);
+                        } else {
+                            console.warn('DeviceCountUpdated event missing DeviceCount property:', data);
+                        }
+                    });
+
                     await this.connection.start();
                     this.updateConnectionStatus('connected');
                     
@@ -490,7 +526,13 @@
                         
                         // Join SignalR session
                         if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
-                            await this.connection.invoke('JoinSessionAsync', sessionId, this.deviceId, 'Browser');
+                            const joinResult = await this.connection.invoke('JoinSessionAsync', sessionId, this.deviceId, 'Browser');
+                            console.log('Join session result:', joinResult);
+                            
+                            // Update device count based on session info
+                            if (joinResult && joinResult.sessionInfo && joinResult.sessionInfo.deviceCount) {
+                                this.updateConnectedDeviceCount(joinResult.sessionInfo.deviceCount);
+                            }
                         }
                         
                         this.showNotification('Session created successfully!', 'success');
@@ -520,7 +562,14 @@
                     this.generateQRCode(sessionUrl);
                     
                     if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
-                        await this.connection.invoke('JoinSessionAsync', sessionId, this.deviceId, 'Browser');
+                        const joinResult = await this.connection.invoke('JoinSessionAsync', sessionId, this.deviceId, 'Browser');
+                        console.log('Join session result:', joinResult);
+                        
+                        // Update device count based on session info
+                        if (joinResult && joinResult.sessionInfo && joinResult.sessionInfo.deviceCount) {
+                            this.updateConnectedDeviceCount(joinResult.sessionInfo.deviceCount);
+                        }
+                        
                         this.showNotification(`Joined session: ${sessionId}`, 'success');
                     }
                 } catch (error) {
@@ -614,6 +663,13 @@
                             this.statusText.textContent = 'Disconnected';
                             break;
                     }
+                }
+            }
+
+            updateConnectedDeviceCount(count) {
+                if (this.connectedCountElement) {
+                    this.connectedCountElement.textContent = count.toString();
+                    console.log(`Updated connected device count to: ${count}`);
                 }
             }
 

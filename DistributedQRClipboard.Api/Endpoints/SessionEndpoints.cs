@@ -78,8 +78,8 @@ public static class SessionEndpoints
         {
             logger.LogInformation("Creating new session");
 
-            // Create session with default expiration
-            var createRequest = new CreateSessionRequest(DeviceName: "API Device", ExpirationMinutes: 1440); // 24 hours
+            // Create session with default expiration (no initial device)
+            var createRequest = new CreateSessionRequest(DeviceName: null, ExpirationMinutes: 1440); // 24 hours
             var createResult = await sessionManager.CreateSessionAsync(createRequest);
 
             if (!createResult.Success || createResult.SessionInfo == null)

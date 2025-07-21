@@ -89,14 +89,18 @@ public sealed class SessionManager(
 
             // Generate cryptographically secure session ID
             var sessionId = GenerateSecureSessionId();
-            var deviceId = Guid.NewGuid();
             var now = DateTime.UtcNow;
             var expirationMinutes = request.ExpirationMinutes > 0 ? request.ExpirationMinutes : _options.DefaultExpirationMinutes;
             var expiresAt = now.AddMinutes(expirationMinutes);
 
-            // Create initial device
-            var device = new DeviceInfo(deviceId, request.DeviceName, now, now);
-            var devices = new Dictionary<Guid, DeviceInfo> { { deviceId, device } };
+            // Create devices dictionary - only add initial device if device name is provided
+            var devices = new Dictionary<Guid, DeviceInfo>();
+            if (!string.IsNullOrWhiteSpace(request.DeviceName))
+            {
+                var deviceId = Guid.NewGuid();
+                var device = new DeviceInfo(deviceId, request.DeviceName, now, now);
+                devices.Add(deviceId, device);
+            }
 
             // Create session data
             var sessionData = new SessionData(
@@ -123,7 +127,7 @@ public sealed class SessionManager(
             var sessionInfo = sessionData.ToSessionInfo();
             var qrCodeUrl = GenerateQrCodeUrl(sessionId);
 
-            logger.LogInformation("Session created successfully: {SessionId} with device {DeviceId}", sessionId, deviceId);
+            logger.LogInformation("Session created successfully: {SessionId} with {DeviceCount} initial devices", sessionId, devices.Count);
 
             return new CreateSessionResponse(sessionInfo, qrCodeUrl, null, true);
         }

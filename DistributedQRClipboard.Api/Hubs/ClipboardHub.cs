@@ -147,14 +147,17 @@ public sealed class ClipboardHub(
                 // Don't fail the join operation if clipboard sync fails
             }
 
-            // Notify other devices in the session about new device
+            // Notify ALL devices in the session about new device and updated count
             var deviceJoinedEvent = DeviceJoinedEvent.Create(
                 sessionGuid,
                 new DeviceInfo(deviceGuid, deviceName, DateTime.UtcNow, DateTime.UtcNow),
                 deviceCount);
 
-            await Clients.GroupExcept(groupName, connectionId)
-                .SendAsync("DeviceJoined", deviceJoinedEvent);
+            // Send to all devices in the session (including the newly joined one)
+            await Clients.Group(groupName).SendAsync("DeviceJoined", deviceJoinedEvent);
+            
+            // Also send a specific device count update to ensure all devices have the correct count
+            await BroadcastDeviceCountAsync(sessionGuid, deviceCount);
 
             return new JoinSessionResult(true, "Successfully joined session", joinResult.SessionInfo);
         }
@@ -196,6 +199,9 @@ public sealed class ClipboardHub(
                 return new LeaveSessionResult(false, "Invalid device ID format");
             }
 
+            // Get device name BEFORE clearing context items
+            var deviceName = Context.Items["DeviceName"]?.ToString();
+
             // Remove from SignalR group
             var groupName = GetSessionGroupName(sessionGuid);
             await Groups.RemoveFromGroupAsync(connectionId, groupName);
@@ -210,12 +216,11 @@ public sealed class ClipboardHub(
 
             _logger.LogInformation("Device {DeviceId} successfully left session {SessionId} via SignalR", deviceId, sessionId);
 
-            // Get device name and current session info for the event
-            var deviceName = Context.Items["DeviceName"]?.ToString();
+            // Get current session info for the updated device count
             var currentSession = await _sessionManager.GetSessionAsync(sessionGuid);
             var deviceCount = currentSession.DeviceCount;
 
-            // Notify other devices in the session about device leaving
+            // Notify remaining devices in the session about device leaving
             var deviceLeftEvent = DeviceLeftEvent.Create(
                 sessionGuid,
                 deviceGuid,
@@ -223,8 +228,11 @@ public sealed class ClipboardHub(
                 deviceCount,
                 DeviceLeaveReason.Disconnect);
 
-            await Clients.GroupExcept(groupName, connectionId)
-                .SendAsync("DeviceLeft", deviceLeftEvent);
+            // Send to remaining devices (device already removed from group)
+            await Clients.Group(groupName).SendAsync("DeviceLeft", deviceLeftEvent);
+            
+            // Broadcast updated device count to all remaining devices
+            await BroadcastDeviceCountAsync(sessionGuid, deviceCount);
 
             return new LeaveSessionResult(true, "Successfully left session");
         }
@@ -401,12 +409,40 @@ public sealed class ClipboardHub(
             {
                 try
                 {
+                    // Get device name before leaving
+                    var deviceName = Context.Items["DeviceName"]?.ToString();
+                    
                     // Leave session through session manager
                     await _sessionManager.LeaveSessionAsync(sessionId, deviceId, DeviceLeaveReason.Disconnect);
                     
                     // Remove from SignalR group
                     var groupName = GetSessionGroupName(sessionId);
                     await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+                    
+                    // Get updated device count and notify remaining devices
+                    try
+                    {
+                        var currentSession = await _sessionManager.GetSessionAsync(sessionId);
+                        var deviceCount = currentSession.DeviceCount;
+
+                        // Notify remaining devices about disconnection
+                        var deviceLeftEvent = DeviceLeftEvent.Create(
+                            sessionId,
+                            deviceId,
+                            deviceName,
+                            deviceCount,
+                            DeviceLeaveReason.Disconnect);
+
+                        await Clients.Group(groupName).SendAsync("DeviceLeft", deviceLeftEvent);
+                        
+                        // Broadcast updated device count to remaining devices
+                        await BroadcastDeviceCountAsync(sessionId, deviceCount);
+                    }
+                    catch (SessionNotFoundException)
+                    {
+                        // Session might have been cleaned up, which is normal
+                        _logger.LogDebug("Session {SessionId} not found during disconnect cleanup - likely expired", sessionId);
+                    }
                     
                     _logger.LogInformation("Connection {ConnectionId} removed from session {SessionId} on disconnect", 
                         Context.ConnectionId, sessionId);
@@ -417,6 +453,26 @@ public sealed class ClipboardHub(
                         Context.ConnectionId, sessionId);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts the current device count to all devices in a session.
+    /// </summary>
+    /// <param name="sessionId">The session ID</param>
+    /// <param name="deviceCount">The current device count</param>
+    private async Task BroadcastDeviceCountAsync(Guid sessionId, int deviceCount)
+    {
+        try
+        {
+            var groupName = GetSessionGroupName(sessionId);
+            await Clients.Group(groupName).SendAsync("DeviceCountUpdated", new { SessionId = sessionId, DeviceCount = deviceCount });
+            
+            _logger.LogDebug("Broadcasted device count {DeviceCount} to all devices in session {SessionId}", deviceCount, sessionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to broadcast device count to session {SessionId}", sessionId);
         }
     }
 
